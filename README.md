@@ -11,7 +11,7 @@
                 "/Zi",
                 "/EHsc",
                 "/nologo",
-                "/std:c++20",
+                "/std:c++17",
                 "/Wall",
                 "/WX",
                 "/wd5045",

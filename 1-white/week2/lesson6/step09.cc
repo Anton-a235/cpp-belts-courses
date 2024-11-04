@@ -41,11 +41,7 @@ int main()
         {
             std::cin >> word1 >> word2;
             const auto it = sinonims.find(word1);
-            std::cout << (it == sinonims.cend()
-                              ? "NO"
-                              : (it->second.find(word2) == it->second.cend()
-                                     ? "NO"
-                                     : "YES"))
+            std::cout << (it != sinonims.cend() && it->second.count(word2) ? "YES" : "NO")
                       << std::endl;
         }
         else

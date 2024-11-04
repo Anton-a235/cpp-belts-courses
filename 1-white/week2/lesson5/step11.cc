@@ -1,23 +1,22 @@
-#include <iostream>
-
 #include <algorithm>
+#include <iostream>
 #include <map>
+#include <tuple>
 #include <vector>
 
 int main()
 {
-    std::map<unsigned, std::vector<std::string>, std::greater<unsigned>> ways;
-    unsigned n_reqs;
+    std::map<std::vector<std::string>, size_t> buses;
+    size_t n_reqs;
 
     std::cin >> n_reqs;
 
     while (n_reqs--)
     {
         std::vector<std::string> stops;
-        unsigned n_stops;
+        size_t n_stops;
 
         std::cin >> n_stops;
-
         stops.resize(n_stops);
 
         for (auto &stop : stops)
@@ -25,22 +24,18 @@ int main()
             std::cin >> stop;
         }
 
-        const auto it = std::find_if(ways.cbegin(), ways.cend(),
-                                     [&stops](const auto &v)
-                                     {
-                                         return v.second == stops;
-                                     });
+        auto it = buses.find(stops);
 
-        if (it != ways.cend())
+        if (it != buses.cend())
         {
-            std::cout << "Already exists for " << it->first << std::endl;
+            std::cout << "Already exists for " << it->second << std::endl;
             continue;
         }
 
-        unsigned new_bus = ways.empty() ? 1 : ways.begin()->first + 1;
-        ways.insert(std::pair{new_bus, std::move(stops)});
+        std::tie(it, std::ignore) = buses.insert(std::pair{std::move(stops),
+                                                           buses.size() + 1});
 
-        std::cout << "New bus " << new_bus << std::endl;
+        std::cout << "New bus " << it->second << std::endl;
     }
 
     return 0;

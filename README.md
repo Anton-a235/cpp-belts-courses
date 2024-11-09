@@ -14,9 +14,10 @@
                 "/std:c++17",
                 "/Wall",
                 "/WX",
+                "/wd4514",
                 "/wd5045",
                 "/Od",
-                "/diagnostics:column",
+                "/diagnostics:caret",
                 "/Fe${fileDirname}\\${fileBasenameNoExtension}.exe",
                 "${file}"
             ],

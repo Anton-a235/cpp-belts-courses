@@ -15,6 +15,7 @@
                 "/Wall",
                 "/WX",
                 "/wd4514",
+                "/wd4820",
                 "/wd5045",
                 "/Od",
                 "/diagnostics:caret",
@@ -48,9 +49,9 @@
             "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
             "args": [
                 "<",
-                "in.txt",
+                "input.txt",
                 ">",
-                "out.txt"
+                "output.txt"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}\\.vscode\\cwd",

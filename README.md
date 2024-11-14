@@ -51,7 +51,9 @@
                 "<",
                 "input.txt",
                 ">",
-                "output.txt"
+                "output.txt",
+                "2>",
+                "errors.txt"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}\\.vscode\\cwd",

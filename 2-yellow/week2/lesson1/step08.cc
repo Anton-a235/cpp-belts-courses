@@ -215,7 +215,7 @@ public:
         return {buses_to_stops_};
     }
 
-public:
+private:
     map<string, vector<string>> buses_to_stops_;
     map<string, vector<string>> stops_to_buses_;
 };

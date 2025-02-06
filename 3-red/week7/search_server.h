@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <mutex>
 
 using namespace std;
 
@@ -33,4 +34,5 @@ public:
 
 private:
     InvertedIndex index_;
+    mutex index_mutex_;
 };

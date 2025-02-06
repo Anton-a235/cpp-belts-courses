@@ -34,6 +34,7 @@ void SearchServer::UpdateDocumentBase(istream &document_input)
         new_index.Add(move(current_document));
     }
 
+    lock_guard lock(index_mutex_);
     index_ = move(new_index);
 }
 
@@ -46,11 +47,12 @@ void SearchServer::AddQueriesStream(
     // V <= 10 000 различных слов во всех документах
     // N <= 1000 слов содержит каждый документ
     // D <= 50 000 документов
-    vector<size_t> docid_count(index_.Count(), 0);
-    vector<int64_t> doc_ids(index_.Count(), 0);
-
     for (string current_query; getline(query_input, current_query);) // Q*W*D ~ 3*10^11
     {
+        lock_guard lock(index_mutex_);
+
+        vector<size_t> docid_count(index_.Count(), 0);
+        vector<int64_t> doc_ids(index_.Count(), 0);
         size_t doc_amount = 0;
 
         for (const auto &word : SplitIntoWords(current_query)) // W*D ~ 5*10^5

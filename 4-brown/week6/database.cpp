@@ -10,49 +10,52 @@
 
 #include "geo.h"
 
-namespace BusRoutes
+namespace Transport
 {
 
 using std::string_view_literals::operator""sv;
 
 void Database::add_stop(std::string stop, Geo::Coordinate coord)
 {
-    stops_coords_[std::move(stop)] = coord;
+    stops_[std::move(stop)].coordinate = coord;
 }
 
-std::optional<Geo::Coordinate> Database::get_stop_coorditate(const std::string& stop) const
+const StopInfo& Database::get_stop(const std::string& stop) const
 {
-    if (stops_coords_.count(stop) > 0)
-        return stops_coords_.at(stop);
-
-    return std::nullopt;
+    static const StopInfo empty_info{};
+    return stops_.count(stop) > 0 ? stops_.at(stop) : empty_info;
 }
 
-void Database::add_route(std::string bus, RouteInfoPtr route)
+void Database::add_route(std::string bus, RouteInfo route)
 {
-    bus_routes_[std::move(bus)] = std::move(route);
+    for (const auto& stop : route.stops)
+        stops_[stop].buses.insert(bus);
+
+    routes_[std::move(bus)] = std::move(route);
 }
 
 static double route_length(const std::vector<std::string>& stops,
-                           const std::unordered_map<std::string, Geo::Coordinate>& stops_coords)
+                           const std::unordered_map<std::string, StopInfo>& stops_info)
 {
     double length = 0.0;
 
     for (auto it = stops.cbegin(); !stops.empty() && it != std::prev(stops.cend()); ++it)
-        length += Geo::earth_distance(stops_coords.at(*it), stops_coords.at(*std::next(it)));
+        length += Geo::earth_distance(*stops_info.at(*it).coordinate, *stops_info.at(*std::next(it)).coordinate);
 
     return length;
 }
 
-ConstRouteInfoPtr Database::get_route(const std::string& bus) const
+const RouteInfo& Database::get_route(const std::string& bus) const
 {
-    if (bus_routes_.count(bus) == 0)
-        return nullptr;
+    static const RouteInfo empty_info{};
 
-    const auto& route_info = bus_routes_.at(bus);
+    if (routes_.count(bus) == 0)
+        return empty_info;
 
-    if (!route_info->length.has_value())
-        route_info->length = route_length(route_info->stops, stops_coords_);
+    auto& route_info = routes_.at(bus);
+
+    if (!route_info.length.has_value())
+        route_info.length = route_length(route_info.stops, stops_);
 
     return route_info;
 }
@@ -90,9 +93,8 @@ WriteRequestPtr WriteRequest::from_string(std::string_view str)
     {
         constexpr unsigned MAX_STOPS_COUNT_IN_ROUTE = 100;
 
-        auto route = std::make_shared<RouteInfo>();
-        route->bus = {name.cbegin(), name.cend()};
-        route->stops.reserve(MAX_STOPS_COUNT_IN_ROUTE);
+        RouteInfo route{};
+        route.stops.reserve(MAX_STOPS_COUNT_IN_ROUTE);
 
         std::unordered_set<std::string_view> unique_stops;
         char stops_separator = '\0';
@@ -103,15 +105,15 @@ WriteRequestPtr WriteRequest::from_string(std::string_view str)
             unique_stops.insert(stop);
             if (stops_separator == '\0')
                 stops_separator = separator;
-            route->stops.emplace_back(stop.cbegin(), stop.cend());
+            route.stops.emplace_back(stop.cbegin(), stop.cend());
         }
 
-        route->unique_stops_count = unique_stops.size();
+        route.unique_stops_count = unique_stops.size();
 
         if (stops_separator == '-')
-            std::copy(std::next(route->stops.crbegin()), route->stops.crend(), std::back_inserter(route->stops));
+            std::copy(std::next(route.stops.crbegin()), route.stops.crend(), std::back_inserter(route.stops));
 
-        return std::make_unique<AddRouteRequest>(route->bus, std::move(route));
+        return std::make_unique<AddRouteRequest>(std::string{name.cbegin(), name.cend()}, std::move(route));
     }
 
     return nullptr;
@@ -127,8 +129,8 @@ void AddStopRequest::execute(Database& db) const
     db.add_stop(std::move(stop_), coord_);
 }
 
-AddRouteRequest::AddRouteRequest(std::string bus, RouteInfoPtr route)
-    : bus_(std::move(bus)), route_(route)
+AddRouteRequest::AddRouteRequest(std::string bus, RouteInfo route)
+    : bus_(std::move(bus)), route_(std::move(route))
 {
 }
 
@@ -142,12 +144,22 @@ ReadRequestPtr ReadRequest::from_string(std::string_view str)
     std::string_view command = get_word(str).first;
     std::string_view name = get_word(str, ":"sv).first;
 
-    if (command == "Bus"sv)
-    {
+    if (command == "Stop"sv)
+        return std::make_unique<GetStopRequest>(std::string{name.cbegin(), name.cend()});
+    else if (command == "Bus"sv)
         return std::make_unique<GetRouteRequest>(std::string{name.cbegin(), name.cend()});
-    }
 
     return nullptr;
+}
+
+Transport::GetStopRequest::GetStopRequest(std::string stop)
+    : stop_(std::move(stop))
+{
+}
+
+Response GetStopRequest::execute(const Database& db) const
+{
+    return GetStopResponse{std::move(stop_), db.get_stop(stop_)};
 }
 
 GetRouteRequest::GetRouteRequest(std::string bus)
@@ -157,12 +169,7 @@ GetRouteRequest::GetRouteRequest(std::string bus)
 
 Response GetRouteRequest::execute(const Database& db) const
 {
-    auto resp = db.get_route(bus_);
-
-    if (!resp)
-        resp = std::make_shared<RouteInfo>(RouteInfo{bus_});
-
-    return resp;
+    return GetRouteResponse{std::move(bus_), db.get_route(bus_)};
 }
 
-} // namespace BusRoutes
+} // namespace Transport

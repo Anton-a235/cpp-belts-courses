@@ -1,33 +1,56 @@
 #ifndef IGNORE_STD_HEADERS
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #endif
 
 #include "database.h"
 
-void print_response(BusRoutes::Response resp, std::ostream& os)
+void print_response(Transport::Response response, std::ostream& os)
 {
-    using namespace BusRoutes;
+    using namespace Transport;
 
-    if (std::holds_alternative<ConstRouteInfoPtr>(resp))
+    if (std::holds_alternative<GetStopResponse>(response))
     {
-        const auto& route_info = std::get<ConstRouteInfoPtr>(resp);
+        const auto& resp = std::get<GetStopResponse>(response);
+        os << "Stop " << resp.stop << ": ";
 
-        if (route_info->stops.empty())
+        if (!resp.info.coordinate)
         {
-            os << "Bus " << route_info->bus << ": not found\n";
+            os << "not found\n";
             return;
         }
 
-        os << std::setprecision(6) << "Bus " << route_info->bus << ": " << route_info->stops.size()
-           << " stops on route, " << route_info->unique_stops_count << " unique stops, " << *route_info->length
-           << " route length\n";
+        if (resp.info.buses.empty())
+        {
+            os << "no buses\n";
+            return;
+        }
+
+        os << "buses ";
+        std::copy(resp.info.buses.cbegin(), resp.info.buses.cend(), std::ostream_iterator<std::string>(std::cout, " "));
+        os << '\n';
+    }
+    else if (std::holds_alternative<GetRouteResponse>(response))
+    {
+        const auto& resp = std::get<GetRouteResponse>(response);
+        os << "Bus " << resp.bus << ": ";
+
+        if (resp.route.stops.empty())
+        {
+            os << "not found\n";
+            return;
+        }
+
+        os << resp.route.stops.size() << " stops on route, " << resp.route.unique_stops_count << " unique stops, "
+           << std::setprecision(6) << *resp.route.length << " route length\n";
     }
 }
 
 int main()
 {
-    using namespace BusRoutes;
+    using namespace Transport;
 
     Database db;
     std::string line;

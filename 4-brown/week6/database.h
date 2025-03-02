@@ -3,6 +3,7 @@
 #ifndef IGNORE_STD_HEADERS
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -12,32 +13,34 @@
 
 #include "geo.h"
 
-namespace BusRoutes
+namespace Transport
 {
+
+struct StopInfo
+{
+    std::optional<Geo::Coordinate> coordinate;
+    std::set<std::string> buses;
+};
 
 struct RouteInfo
 {
-    std::string bus;
     std::vector<std::string> stops;
     std::optional<double> length;
     int unique_stops_count;
 };
 
-using RouteInfoPtr = std::shared_ptr<RouteInfo>;
-using ConstRouteInfoPtr = std::shared_ptr<const RouteInfo>;
-
 class Database
 {
 public:
     void add_stop(std::string stop, Geo::Coordinate coord);
-    std::optional<Geo::Coordinate> get_stop_coorditate(const std::string& stop) const;
+    const StopInfo& get_stop(const std::string& stop) const;
 
-    void add_route(std::string bus, RouteInfoPtr route);
-    ConstRouteInfoPtr get_route(const std::string& bus) const;
+    void add_route(std::string bus, RouteInfo route);
+    const RouteInfo& get_route(const std::string& bus) const;
 
 private:
-    std::unordered_map<std::string, Geo::Coordinate> stops_coords_;
-    std::unordered_map<std::string, RouteInfoPtr> bus_routes_;
+    std::unordered_map<std::string, StopInfo> stops_;
+    mutable std::unordered_map<std::string, RouteInfo> routes_;
 };
 
 class WriteRequest;
@@ -68,19 +71,35 @@ private:
 class AddRouteRequest : public WriteRequest
 {
 public:
-    AddRouteRequest(std::string bus, RouteInfoPtr route);
+    AddRouteRequest(std::string bus, RouteInfo route);
 
     void execute(Database& db) const override;
 
 private:
     std::string bus_;
-    RouteInfoPtr route_;
+    RouteInfo route_;
 };
 
 class ReadRequest;
 using ReadRequestPtr = std::unique_ptr<ReadRequest>;
 
-using Response = std::variant<std::monostate, ConstRouteInfoPtr>;
+struct GetStopResponse
+{
+    std::string stop;
+    const StopInfo& info;
+
+    GetStopResponse() = delete;
+};
+
+struct GetRouteResponse
+{
+    std::string bus;
+    const RouteInfo& route;
+
+    GetRouteResponse() = delete;
+};
+
+using Response = std::variant<std::monostate, GetStopResponse, GetRouteResponse>;
 
 class ReadRequest
 {
@@ -90,6 +109,17 @@ public:
     static ReadRequestPtr from_string(std::string_view str);
 
     virtual Response execute(const Database& db) const = 0;
+};
+
+class GetStopRequest : public ReadRequest
+{
+public:
+    GetStopRequest(std::string stop);
+
+    Response execute(const Database& db) const override;
+
+private:
+    std::string stop_;
 };
 
 class GetRouteRequest : public ReadRequest
@@ -103,4 +133,4 @@ private:
     std::string bus_;
 };
 
-} // namespace BusRoutes
+} // namespace Transport

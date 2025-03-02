@@ -29,7 +29,7 @@ void print_response(Transport::Response response, std::ostream& os)
         }
 
         os << "buses ";
-        std::copy(resp.info.buses.cbegin(), resp.info.buses.cend(), std::ostream_iterator<std::string>(std::cout, " "));
+        std::copy(resp.info.buses.cbegin(), resp.info.buses.cend(), std::ostream_iterator<std::string>(os, " "));
         os << '\n';
     }
     else if (std::holds_alternative<GetRouteResponse>(response))
@@ -43,8 +43,9 @@ void print_response(Transport::Response response, std::ostream& os)
             return;
         }
 
-        os << resp.route.stops.size() << " stops on route, " << resp.route.unique_stops_count << " unique stops, "
-           << std::setprecision(6) << *resp.route.length << " route length\n";
+        const auto& r = resp.route;
+        os << r.stops.size() << " stops on route, " << r.unique_stops_count << " unique stops, " << *r.length
+           << " route length, " << std::setprecision(6) << *r.curvature << " curvature\n";
     }
 }
 

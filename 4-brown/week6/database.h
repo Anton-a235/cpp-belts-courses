@@ -25,14 +25,15 @@ struct StopInfo
 struct RouteInfo
 {
     std::vector<std::string> stops;
-    std::optional<double> length;
+    std::optional<int> length;
+    std::optional<double> curvature;
     int unique_stops_count;
 };
 
 class Database
 {
 public:
-    void add_stop(std::string stop, Geo::Coordinate coord);
+    void add_stop(std::string stop, Geo::Coordinate coord, std::unordered_map<std::string, int> distances);
     const StopInfo& get_stop(const std::string& stop) const;
 
     void add_route(std::string bus, RouteInfo route);
@@ -40,6 +41,7 @@ public:
 
 private:
     std::unordered_map<std::string, StopInfo> stops_;
+    std::unordered_map<std::string, std::unordered_map<std::string, int>> road_distances_;
     mutable std::unordered_map<std::string, RouteInfo> routes_;
 };
 
@@ -59,13 +61,14 @@ public:
 class AddStopRequest : public WriteRequest
 {
 public:
-    AddStopRequest(std::string stop, Geo::Coordinate coord);
+    AddStopRequest(std::string stop, Geo::Coordinate coord, std::unordered_map<std::string, int> distances);
 
     void execute(Database& db) const override;
 
 private:
     std::string stop_;
     Geo::Coordinate coord_;
+    std::unordered_map<std::string, int> distances_;
 };
 
 class AddRouteRequest : public WriteRequest

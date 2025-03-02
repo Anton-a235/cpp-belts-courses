@@ -2,8 +2,10 @@
 
 #ifndef IGNORE_STD_HEADERS
 #include <algorithm>
+#include <charconv>
 #include <iterator>
 #include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #endif
@@ -15,8 +17,9 @@ namespace Transport
 
 using std::string_view_literals::operator""sv;
 
-void Database::add_stop(std::string stop, Geo::Coordinate coord)
+void Database::add_stop(std::string stop, Geo::Coordinate coord, std::unordered_map<std::string, int> distances)
 {
+    road_distances_[stop].merge(std::move(distances));
     stops_[std::move(stop)].coordinate = coord;
 }
 
@@ -34,13 +37,30 @@ void Database::add_route(std::string bus, RouteInfo route)
     routes_[std::move(bus)] = std::move(route);
 }
 
-static double route_length(const std::vector<std::string>& stops,
-                           const std::unordered_map<std::string, StopInfo>& stops_info)
+static double route_geo_length(const std::vector<std::string>& stops,
+                               const std::unordered_map<std::string, StopInfo>& stops_info)
 {
     double length = 0.0;
 
     for (auto it = stops.cbegin(); !stops.empty() && it != std::prev(stops.cend()); ++it)
         length += Geo::earth_distance(*stops_info.at(*it).coordinate, *stops_info.at(*std::next(it)).coordinate);
+
+    return length;
+}
+
+static int route_road_length(
+    const std::vector<std::string>& stops,
+    const std::unordered_map<std::string, std::unordered_map<std::string, int>>& road_distances_)
+{
+    int length = 0;
+
+    for (auto it = stops.cbegin(); !stops.empty() && it != std::prev(stops.cend()); ++it)
+    {
+        if (road_distances_.count(*it) > 0 && road_distances_.at(*it).count(*std::next(it)))
+            length += road_distances_.at(*it).at(*std::next(it));
+        else
+            length += road_distances_.at(*std::next(it)).at(*it);
+    }
 
     return length;
 }
@@ -55,7 +75,10 @@ const RouteInfo& Database::get_route(const std::string& bus) const
     auto& route_info = routes_.at(bus);
 
     if (!route_info.length.has_value())
-        route_info.length = route_length(route_info.stops, stops_);
+        route_info.length = route_road_length(route_info.stops, road_distances_);
+
+    if (!route_info.curvature.has_value())
+        route_info.curvature = *route_info.length * 1.0 / route_geo_length(route_info.stops, stops_);
 
     return route_info;
 }
@@ -82,12 +105,25 @@ WriteRequestPtr WriteRequest::from_string(std::string_view str)
 
     if (command == "Stop"sv)
     {
+        std::unordered_map<std::string, int> distances;
         std::string_view lat_str = get_word(str, ","sv).first;
-        std::string_view lon_str = get_word(str).first;
+        auto [lon_str, separator] = get_word(str, ","sv);
         double latitude = std::stod(std::string{lat_str.cbegin(), lat_str.cend()});
         double longitude = std::stod(std::string{lon_str.cbegin(), lon_str.cend()});
-        return std::make_unique<AddStopRequest>(std::string{name.cbegin(), name.cend()},
-                                                Geo::Coordinate{latitude, longitude});
+
+        while (separator == ',')
+        {
+            int dist;
+            std::string_view stop_to;
+            std::string_view dist_str = get_word(str, "m"sv).first;
+            std::ignore = std::from_chars(dist_str.data(), dist_str.data() + dist_str.size(), dist);
+            std::ignore = get_word(str); // to
+            std::tie(stop_to, separator) = get_word(str, ","sv);
+            distances[{stop_to.cbegin(), stop_to.cend()}] = dist;
+        }
+
+        return std::make_unique<AddStopRequest>(
+            std::string{name.cbegin(), name.cend()}, Geo::Coordinate{latitude, longitude}, std::move(distances));
     }
     else if (command == "Bus"sv)
     {
@@ -119,14 +155,14 @@ WriteRequestPtr WriteRequest::from_string(std::string_view str)
     return nullptr;
 }
 
-AddStopRequest::AddStopRequest(std::string stop, Geo::Coordinate coord)
-    : stop_(std::move(stop)), coord_(coord)
+AddStopRequest::AddStopRequest(std::string stop, Geo::Coordinate coord, std::unordered_map<std::string, int> distances)
+    : stop_(std::move(stop)), coord_(coord), distances_(std::move(distances))
 {
 }
 
 void AddStopRequest::execute(Database& db) const
 {
-    db.add_stop(std::move(stop_), coord_);
+    db.add_stop(std::move(stop_), coord_, std::move(distances_));
 }
 
 AddRouteRequest::AddRouteRequest(std::string bus, RouteInfo route)

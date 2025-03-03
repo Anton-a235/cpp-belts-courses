@@ -3,10 +3,12 @@ CLFLAGS = /Zi /EHsc /nologo /std:c++17 /Wall /WX /wd4267 /wd4365 /wd4514 /wd4625
 
 SOURCES = bus_routes.cpp \
 		  database.cpp \
-		  geo.cpp
+		  geo.cpp \
+		  json.cpp
 
 HEADERS = database.h \
-		  geo.h
+		  geo.h \
+		  json.h
 
 all: bus_routes.exe
 

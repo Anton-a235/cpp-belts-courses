@@ -3,77 +3,89 @@
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <string_view>
 #endif
 
 #include "database.h"
 
-void print_response(Transport::Response response, std::ostream& os)
+void print_responses(const std::vector<Transport::Response>& responses, std::ostream& os)
 {
     using namespace Transport;
 
-    if (std::holds_alternative<GetStopResponse>(response))
+    constexpr std::string_view indent1("  ");
+    constexpr std::string_view indent2("    ");
+    constexpr std::string_view indent3("      ");
+
+    os << "[\n";
+
+    for (const auto& response : responses)
     {
-        const auto& resp = std::get<GetStopResponse>(response);
-        os << "Stop " << resp.stop << ": ";
+        os << indent1 << "{\n";
 
-        if (!resp.info.coordinate)
+        if (std::holds_alternative<GetStopResponse>(response))
         {
-            os << "not found\n";
-            return;
+            const auto& resp = std::get<GetStopResponse>(response);
+            os << indent2 << R"("request_id": )" << *resp.request_id << ",\n";
+
+            if (!resp.info.coordinate)
+            {
+                os << indent2 << R"("error_message": "not found")" << '\n';
+                os << indent1 << (&response == &responses.back() ? "}\n" : "},\n");
+                continue;
+            }
+
+            os << indent2 << R"("buses": [)" << '\n';
+            for (const auto& bus : resp.info.buses)
+            {
+                os << indent3 << R"(")" << bus << (&bus == &*resp.info.buses.rbegin() ? R"(")" : R"(",)") << '\n';
+            }
+            os << indent2 << "]\n";
+        }
+        else if (std::holds_alternative<GetRouteResponse>(response))
+        {
+            const auto& resp = std::get<GetRouteResponse>(response);
+            os << indent2 << R"("request_id": )" << *resp.request_id << ",\n";
+
+            if (resp.route.stops.empty())
+            {
+                os << indent2 << R"("error_message": "not found")" << '\n';
+                os << indent1 << (&response == &responses.back() ? "}\n" : "},\n");
+                continue;
+            }
+
+            const auto& r = resp.route;
+            os << indent2 << R"("route_length": )" << *r.length << ",\n";
+            os << indent2 << R"("curvature": )" << std::setprecision(6) << *r.curvature << ",\n";
+            os << indent2 << R"("stop_count": )" << r.stops.size() << ",\n";
+            os << indent2 << R"("unique_stop_count": )" << r.unique_stops_count << '\n';
         }
 
-        if (resp.info.buses.empty())
-        {
-            os << "no buses\n";
-            return;
-        }
-
-        os << "buses ";
-        std::copy(resp.info.buses.cbegin(), resp.info.buses.cend(), std::ostream_iterator<std::string>(os, " "));
-        os << '\n';
+        os << indent1 << (&response == &responses.back() ? "}\n" : "},\n");
     }
-    else if (std::holds_alternative<GetRouteResponse>(response))
-    {
-        const auto& resp = std::get<GetRouteResponse>(response);
-        os << "Bus " << resp.bus << ": ";
 
-        if (resp.route.stops.empty())
-        {
-            os << "not found\n";
-            return;
-        }
-
-        const auto& r = resp.route;
-        os << r.stops.size() << " stops on route, " << r.unique_stops_count << " unique stops, " << *r.length
-           << " route length, " << std::setprecision(6) << *r.curvature << " curvature\n";
-    }
+    os << "]\n";
 }
 
 int main()
 {
     using namespace Transport;
 
+    const Json::Document doc = Json::Load(std::cin);
+    const auto& requests = doc.GetRoot().AsMap();
     Database db;
-    std::string line;
-    int req_count;
 
-    std::cin >> req_count;
-    std::getline(std::cin, line);
-
-    while (req_count--)
+    for (const auto& node : requests.at("base_requests").AsArray())
     {
-        std::getline(std::cin, line);
-        WriteRequest::from_string(line)->execute(db);
+        WriteRequest::from_json(node)->execute(db);
     }
 
-    std::cin >> req_count;
-    std::getline(std::cin, line);
+    std::vector<Response> responses;
 
-    while (req_count--)
+    for (const auto& node : requests.at("stat_requests").AsArray())
     {
-        std::getline(std::cin, line);
-        print_response(ReadRequest::from_string(line)->execute(db), std::cout);
+        responses.push_back(ReadRequest::from_json(node)->execute(db));
     }
 
+    print_responses(responses, std::cout);
     return 0;
 }

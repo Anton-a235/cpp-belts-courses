@@ -12,6 +12,7 @@
 #endif
 
 #include "geo.h"
+#include "json.h"
 
 namespace Transport
 {
@@ -54,6 +55,7 @@ public:
     virtual ~WriteRequest() = default;
 
     static WriteRequestPtr from_string(std::string_view str);
+    static WriteRequestPtr from_json(const Json::Node& node);
 
     virtual void execute(Database& db) const = 0;
 };
@@ -88,6 +90,7 @@ using ReadRequestPtr = std::unique_ptr<ReadRequest>;
 
 struct GetStopResponse
 {
+    std::optional<int> request_id;
     std::string stop;
     const StopInfo& info;
 
@@ -96,6 +99,7 @@ struct GetStopResponse
 
 struct GetRouteResponse
 {
+    std::optional<int> request_id;
     std::string bus;
     const RouteInfo& route;
 
@@ -109,15 +113,21 @@ class ReadRequest
 public:
     virtual ~ReadRequest() = default;
 
+    ReadRequest(std::optional<int> request_id);
+
     static ReadRequestPtr from_string(std::string_view str);
+    static ReadRequestPtr from_json(const Json::Node& node);
 
     virtual Response execute(const Database& db) const = 0;
+
+protected:
+    std::optional<int> id_;
 };
 
 class GetStopRequest : public ReadRequest
 {
 public:
-    GetStopRequest(std::string stop);
+    GetStopRequest(std::string stop, std::optional<int> request_id = std::nullopt);
 
     Response execute(const Database& db) const override;
 
@@ -128,7 +138,7 @@ private:
 class GetRouteRequest : public ReadRequest
 {
 public:
-    GetRouteRequest(std::string bus);
+    GetRouteRequest(std::string bus, std::optional<int> request_id = std::nullopt);
 
     Response execute(const Database& db) const override;
 

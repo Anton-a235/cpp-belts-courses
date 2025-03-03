@@ -155,6 +155,49 @@ WriteRequestPtr WriteRequest::from_string(std::string_view str)
     return nullptr;
 }
 
+WriteRequestPtr WriteRequest::from_json(const Json::Node& node)
+{
+    const auto& req = node.AsMap();
+
+    if (req.at("type").AsString() == "Stop"sv)
+    {
+        std::unordered_map<std::string, int> distances;
+
+        for (const auto& [stop_to, dist] : req.at("road_distances").AsMap())
+            distances[stop_to] = dist.AsInt();
+
+        double latitude = req.at("latitude").AsDouble();
+        double longitude = req.at("longitude").AsDouble();
+
+        return std::make_unique<AddStopRequest>(
+            req.at("name").AsString(), Geo::Coordinate{latitude, longitude}, std::move(distances));
+    }
+    else if (req.at("type").AsString() == "Bus"sv)
+    {
+        constexpr unsigned MAX_STOPS_COUNT_IN_ROUTE = 100;
+
+        RouteInfo route{};
+        route.stops.reserve(MAX_STOPS_COUNT_IN_ROUTE);
+
+        std::unordered_set<std::string_view> unique_stops;
+
+        for (const auto& stop : req.at("stops").AsArray())
+        {
+            route.stops.push_back(stop.AsString());
+            unique_stops.insert(stop.AsString());
+        }
+
+        route.unique_stops_count = unique_stops.size();
+
+        if (!req.at("is_roundtrip").AsBool())
+            std::copy(std::next(route.stops.crbegin()), route.stops.crend(), std::back_inserter(route.stops));
+
+        return std::make_unique<AddRouteRequest>(req.at("name").AsString(), std::move(route));
+    }
+
+    return nullptr;
+}
+
 AddStopRequest::AddStopRequest(std::string stop, Geo::Coordinate coord, std::unordered_map<std::string, int> distances)
     : stop_(std::move(stop)), coord_(coord), distances_(std::move(distances))
 {
@@ -175,6 +218,11 @@ void AddRouteRequest::execute(Database& db) const
     db.add_route(std::move(bus_), std::move(route_));
 }
 
+ReadRequest::ReadRequest(std::optional<int> request_id)
+    : id_(request_id)
+{
+}
+
 ReadRequestPtr ReadRequest::from_string(std::string_view str)
 {
     std::string_view command = get_word(str).first;
@@ -188,24 +236,36 @@ ReadRequestPtr ReadRequest::from_string(std::string_view str)
     return nullptr;
 }
 
-Transport::GetStopRequest::GetStopRequest(std::string stop)
-    : stop_(std::move(stop))
+ReadRequestPtr ReadRequest::from_json(const Json::Node& node)
+{
+    const auto& req = node.AsMap();
+
+    if (req.at("type").AsString() == "Stop"sv)
+        return std::make_unique<GetStopRequest>(req.at("name").AsString(), req.at("id").AsInt());
+    else if (req.at("type").AsString() == "Bus"sv)
+        return std::make_unique<GetRouteRequest>(req.at("name").AsString(), req.at("id").AsInt());
+
+    return nullptr;
+}
+
+Transport::GetStopRequest::GetStopRequest(std::string stop, std::optional<int> request_id)
+    : ReadRequest(request_id), stop_(std::move(stop))
 {
 }
 
 Response GetStopRequest::execute(const Database& db) const
 {
-    return GetStopResponse{std::move(stop_), db.get_stop(stop_)};
+    return GetStopResponse{id_, std::move(stop_), db.get_stop(stop_)};
 }
 
-GetRouteRequest::GetRouteRequest(std::string bus)
-    : bus_(std::move(bus))
+GetRouteRequest::GetRouteRequest(std::string bus, std::optional<int> request_id)
+    : ReadRequest(request_id), bus_(std::move(bus))
 {
 }
 
 Response GetRouteRequest::execute(const Database& db) const
 {
-    return GetRouteResponse{std::move(bus_), db.get_route(bus_)};
+    return GetRouteResponse{id_, std::move(bus_), db.get_route(bus_)};
 }
 
 } // namespace Transport

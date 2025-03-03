@@ -3,7 +3,9 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <istream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>

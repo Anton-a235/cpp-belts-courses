@@ -1,6 +1,11 @@
 #include <algorithm>
+#include <cassert>
 #include <charconv>
 #include <cmath>
+#include <cstdint>
+#include <cstdlib>
+#include <deque>
+#include <exception>
 #include <iomanip>
 #include <iostream>
 #include <istream>
@@ -11,7 +16,6 @@
 #include <set>
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>

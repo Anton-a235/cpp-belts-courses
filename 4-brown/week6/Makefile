@@ -1,5 +1,5 @@
 CLFLAGS = /Zi /EHsc /nologo /std:c++17 /Wall /WX /wd4267 /wd4365 /wd4514 /wd4625 /wd4626 \
-		  /wd4710 /wd4711 /wd4820 /wd5026 /wd5027 /wd5045 /Od /diagnostics:caret
+		  /wd4710 /wd4711 /wd4820 /wd5026 /wd5027 /wd5045 /Ox /diagnostics:caret
 
 SOURCES = bus_routes.cpp \
 		  database.cpp \
@@ -8,7 +8,9 @@ SOURCES = bus_routes.cpp \
 
 HEADERS = database.h \
 		  geo.h \
-		  json.h
+		  graph.h \
+		  json.h \
+		  router.h
 
 all: bus_routes.exe
 

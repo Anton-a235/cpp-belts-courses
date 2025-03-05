@@ -19,6 +19,7 @@
                 "/wd5045",
                 "/Od",
                 "/diagnostics:caret",
+                "/I${fileDirname}\\..\\..\\utility",
                 "/Fe${fileDirname}\\${fileBasenameNoExtension}.exe",
                 "${file}"
             ],
